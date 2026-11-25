@@ -1,0 +1,36 @@
+{
+  "name": "blockhost-local-manager",
+  "version": "0.1.0",
+  "description": "A local Minecraft Java server manager",
+  "main": "main.cjs",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist:win": "electron-builder --win nsis",
+    "test": "node --test server-files.test.cjs"
+  },
+  "devDependencies": {
+    "electron": "^38.0.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "local.blockhost.manager",
+    "productName": "Blockhost",
+    "files": [
+      "index.html",
+      "main.cjs",
+      "preload.cjs",
+      "server-files.cjs"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
+  "allowScripts": {
+    "electron@38.8.6": true
+  }
+}

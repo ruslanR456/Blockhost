@@ -1,0 +1,931 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="theme-color" content="#f3f5f2">
+	<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; connect-src 'self' https://piston-meta.mojang.com https://launcher.mojang.com https://piston-data.mojang.com; img-src 'self' data:">
+	<title>Blockhost - Local Server Manager</title>
+	<style>
+		@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap');
+
+		:root {
+			color-scheme: light;
+			--paper: #f3f5f2;
+			--surface: #ffffff;
+			--surface-muted: #e9ede8;
+			--ink: #18221e;
+			--ink-soft: #66716b;
+			--line: #dce2dc;
+			--green: #2f7b55;
+			--green-dark: #20583c;
+			--green-pale: #e0eee4;
+			--lime: #d5ef76;
+			--orange: #e57d50;
+			--orange-pale: #fff0e8;
+			--shadow: 0 18px 48px rgb(22 37 29 / 12%);
+			--sans: 'Manrope', 'Segoe UI', sans-serif;
+			--mono: 'DM Mono', 'Consolas', monospace;
+		}
+
+		* { box-sizing: border-box; }
+		body {
+			min-width: 320px;
+			min-height: 100vh;
+			margin: 0;
+			color: var(--ink);
+			background:
+				radial-gradient(circle at 96% 5%, rgb(213 239 118 / 18%), transparent 25rem),
+				linear-gradient(135deg, #f7f8f6 0%, var(--paper) 48%, #edf1ec 100%);
+			font: 14px/1.5 var(--sans);
+		}
+
+		button, input, select { font: inherit; }
+		button { color: inherit; }
+		button:focus-visible, input:focus-visible, select:focus-visible {
+			outline: 3px solid rgb(47 123 85 / 30%);
+			outline-offset: 2px;
+		}
+
+		.app-shell { display: grid; min-height: 100vh; grid-template-columns: 248px minmax(0, 1fr); }
+		.sidebar {
+			position: sticky;
+			top: 0;
+			display: flex;
+			height: 100vh;
+			min-height: 620px;
+			flex-direction: column;
+			padding: 27px 18px 18px;
+			border-right: 1px solid var(--line);
+			background: rgb(249 250 248 / 82%);
+			backdrop-filter: blur(14px);
+		}
+		.brand { display: flex; align-items: center; gap: 11px; padding: 0 10px 38px; }
+		.brand-mark {
+			display: grid;
+			width: 35px;
+			height: 35px;
+			place-items: center;
+			border: 1px solid #264a36;
+			border-radius: 9px;
+			background: var(--green);
+			box-shadow: inset 0 -4px 0 rgb(0 0 0 / 14%);
+		}
+		.brand-mark span { width: 15px; height: 15px; border: 3px solid var(--lime); border-top-width: 6px; }
+		.brand-name { font-size: 15px; font-weight: 800; letter-spacing: 0; }
+		.brand-caption { margin-top: 1px; color: var(--ink-soft); font-family: var(--mono); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }
+		.nav-label { padding: 0 11px 9px; color: #89938d; font: 10px var(--mono); letter-spacing: .11em; text-transform: uppercase; }
+		.nav-list { display: grid; gap: 5px; }
+		.nav-item {
+			display: flex;
+			min-height: 42px;
+			align-items: center;
+			gap: 12px;
+			padding: 0 12px;
+			border: 0;
+			border-radius: 7px;
+			background: transparent;
+			color: var(--ink-soft);
+			cursor: pointer;
+			text-align: left;
+			transition: background .18s ease, color .18s ease, transform .18s ease;
+		}
+		.nav-item:hover { transform: translateX(2px); background: #e9eee9; color: var(--ink); }
+		.nav-item.active { background: var(--green-pale); color: var(--green-dark); font-weight: 700; }
+		.nav-icon { display: grid; width: 19px; place-items: center; font-size: 16px; }
+		.nav-count { margin-left: auto; color: #718078; font: 11px var(--mono); }
+		.sidebar-spacer { flex: 1; }
+		.runtime-box { padding: 15px 13px; border: 1px solid var(--line); border-radius: 8px; background: #f4f6f3; }
+		.runtime-title { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; }
+		.runtime-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--orange); box-shadow: 0 0 0 3px var(--orange-pale); }
+		.runtime-copy { margin-top: 7px; color: var(--ink-soft); font-size: 11px; line-height: 1.55; }
+		.sidebar-foot { margin-top: 14px; padding: 0 10px; color: #8a948e; font: 10px var(--mono); }
+
+		.main { min-width: 0; padding: 0 46px 48px; }
+		.topbar { display: flex; height: 76px; align-items: center; justify-content: space-between; border-bottom: 1px solid rgb(220 226 220 / 75%); }
+		.crumb { color: var(--ink-soft); font-size: 12px; }
+		.top-actions { display: flex; align-items: center; gap: 12px; }
+		.machine-pill { display: inline-flex; align-items: center; gap: 8px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 6px; background: rgb(255 255 255 / 62%); color: #47544c; font-size: 11px; }
+		.machine-pill .led { width: 7px; height: 7px; border-radius: 50%; background: #5da477; }
+		.avatar { display: grid; width: 31px; height: 31px; place-items: center; border-radius: 50%; background: #263d31; color: var(--lime); font-size: 11px; font-weight: 800; }
+		.content { width: min(1120px, 100%); margin: 0 auto; }
+		.page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; padding: 39px 0 27px; animation: rise .45s ease both; }
+		.eyebrow { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; color: var(--green); font: 10px var(--mono); letter-spacing: .11em; text-transform: uppercase; }
+		.eyebrow::before { width: 19px; height: 1px; background: var(--green); content: ''; }
+		h1 { margin: 0; font-size: clamp(26px, 3vw, 35px); font-weight: 700; letter-spacing: 0; line-height: 1.15; }
+		.page-subtitle { margin: 8px 0 0; color: var(--ink-soft); font-size: 13px; }
+		.button {
+			display: inline-flex;
+			min-height: 40px;
+			align-items: center;
+			justify-content: center;
+			gap: 9px;
+			padding: 0 15px;
+			border: 1px solid transparent;
+			border-radius: 6px;
+			background: var(--green);
+			color: white;
+			cursor: pointer;
+			font-size: 12px;
+			font-weight: 700;
+			transition: background .18s ease, transform .18s ease, box-shadow .18s ease;
+		}
+		.button:hover { transform: translateY(-1px); background: var(--green-dark); box-shadow: 0 5px 13px rgb(32 88 60 / 16%); }
+		.button:disabled { transform: none; background: #9aa69e; box-shadow: none; cursor: not-allowed; }
+		.button .plus { font-size: 18px; font-weight: 400; line-height: 1; }
+		.button.secondary { border-color: var(--line); background: white; color: #39463e; }
+		.button.secondary:hover { background: #f5f7f4; box-shadow: none; }
+		.button.small { min-height: 32px; padding: 0 10px; font-size: 11px; }
+
+		.requirement {
+			position: relative;
+			display: grid;
+			grid-template-columns: minmax(0, 1fr) auto;
+			align-items: center;
+			gap: 22px;
+			overflow: hidden;
+			padding: 20px 24px;
+			border: 1px solid #d5e0d5;
+			border-radius: 9px;
+			background: linear-gradient(105deg, #e6efe6 0%, #edf3ec 58%, #e8eee8 100%);
+			animation: rise .5s .06s ease both;
+		}
+		.requirement::after { position: absolute; top: -25px; right: 15%; width: 130px; height: 130px; border: 1px solid rgb(47 123 85 / 12%); border-radius: 50%; box-shadow: 0 0 0 17px rgb(47 123 85 / 4%), 0 0 0 34px rgb(47 123 85 / 3%); content: ''; pointer-events: none; }
+		.req-copy { display: flex; align-items: flex-start; gap: 13px; }
+		.req-icon { display: grid; width: 35px; height: 35px; flex: 0 0 auto; place-items: center; border-radius: 8px; background: var(--green); color: white; font: 11px var(--mono); }
+		.req-title { margin: 0; font-size: 13px; font-weight: 800; }
+		.req-desc { margin: 4px 0 0; color: #5e6d63; font-size: 11px; }
+		.req-metric { position: relative; z-index: 1; min-width: 105px; padding-left: 21px; border-left: 1px solid #c9d6ca; }
+		.req-number { font: 24px/1 var(--mono); color: var(--green-dark); }
+		.req-label { margin-top: 5px; color: #65756a; font: 9px var(--mono); letter-spacing: .07em; text-transform: uppercase; }
+
+		.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 21px 0 34px; border: 1px solid var(--line); border-radius: 8px; background: rgb(255 255 255 / 74%); animation: rise .5s .12s ease both; }
+		.stat { min-height: 83px; padding: 16px 21px; }
+		.stat + .stat { border-left: 1px solid var(--line); }
+		.stat-label { color: #7a867e; font: 9px var(--mono); letter-spacing: .09em; text-transform: uppercase; }
+		.stat-value { display: flex; align-items: baseline; gap: 8px; margin-top: 7px; font: 21px/1 var(--mono); }
+		.stat-note { color: var(--ink-soft); font: 10px var(--sans); }
+
+		.section-head { display: flex; align-items: center; justify-content: space-between; gap: 15px; margin-bottom: 13px; }
+		.section-title { margin: 0; font-size: 15px; font-weight: 800; }
+		.section-meta { color: #87918a; font: 10px var(--mono); }
+		.server-list { display: grid; gap: 11px; }
+		.empty-state { display: grid; min-height: 240px; place-items: center; padding: 34px 20px; border: 1px dashed #cbd4cb; border-radius: 8px; background: rgb(255 255 255 / 46%); text-align: center; animation: rise .45s .18s ease both; }
+		.empty-art { display: grid; width: 50px; height: 50px; margin: 0 auto 15px; place-items: center; border: 1px solid #c8d6ca; border-radius: 13px; background: var(--green-pale); color: var(--green-dark); font-size: 22px; }
+		.empty-title { margin: 0; font-size: 15px; font-weight: 800; }
+		.empty-copy { max-width: 340px; margin: 6px auto 16px; color: var(--ink-soft); font-size: 12px; }
+		.server-card { display: grid; grid-template-columns: minmax(220px, 1.5fr) repeat(3, minmax(90px, .75fr)) auto; align-items: center; gap: 18px; padding: 17px 19px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); box-shadow: 0 3px 12px rgb(26 39 30 / 3%); animation: rise .3s ease both; }
+		.server-ident { display: flex; min-width: 0; align-items: center; gap: 12px; }
+		.server-cube { display: grid; width: 38px; height: 38px; flex: 0 0 auto; place-items: center; border-radius: 8px; background: #e7eee6; color: var(--green-dark); font-size: 17px; }
+		.server-name { overflow: hidden; font-size: 13px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+		.server-version { margin-top: 3px; color: var(--ink-soft); font: 10px var(--mono); }
+		.server-field-label { color: #929b95; font: 9px var(--mono); letter-spacing: .07em; text-transform: uppercase; }
+		.server-field-value { margin-top: 5px; color: #3d4941; font-size: 11px; }
+		.server-status { display: inline-flex; align-items: center; gap: 6px; color: #8d5d40; }
+		.server-status::before { width: 6px; height: 6px; border-radius: 50%; background: #dc936d; content: ''; }
+		.server-actions { display: flex; justify-content: flex-end; gap: 7px; }
+		.icon-button { display: grid; width: 32px; height: 32px; place-items: center; border: 1px solid var(--line); border-radius: 5px; background: white; color: #647068; cursor: pointer; }
+		.icon-button:hover { border-color: #9db5a3; color: var(--green-dark); }
+		.icon-button.danger:hover { border-color: #e4b7a5; color: #a64c32; }
+		.setup-note { display: flex; align-items: center; gap: 8px; margin-top: 12px; color: #8a948e; font-size: 10px; }
+		.setup-note span { color: var(--orange); font-size: 14px; }
+
+		.settings-panel { padding: 20px; border: 1px solid var(--line); border-radius: 8px; background: white; }
+		.settings-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 16px 0; }
+		.settings-row + .settings-row { border-top: 1px solid var(--line); }
+		.settings-name { font-size: 12px; font-weight: 700; }
+		.settings-help { margin-top: 4px; color: var(--ink-soft); font-size: 11px; }
+		.settings-value { color: #5c6a61; font: 10px var(--mono); text-align: right; }
+		.settings-chip { padding: 6px 9px; border: 1px solid var(--line); border-radius: 5px; background: #f8faf7; color: #59665e; font: 10px var(--mono); }
+		.management-bar { display: flex; min-height: 58px; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 18px; padding: 10px 13px; border: 1px solid var(--line); border-radius: 7px; background: rgb(255 255 255 / 75%); }
+		.management-controls { display: flex; align-items: center; gap: 9px; }
+		.management-bar label { display: flex; align-items: center; gap: 10px; color: #69756e; font-size: 10px; font-weight: 800; }
+		.management-bar select { min-width: 190px; height: 34px; padding: 0 9px; border: 1px solid #d4ddd5; border-radius: 5px; background: white; color: var(--ink); font-size: 11px; }
+		.runtime-state { display: flex; align-items: center; gap: 7px; color: var(--ink-soft); font-size: 10px; }
+		.runtime-state::before { width: 7px; height: 7px; border-radius: 50%; background: #d7a170; content: ''; }
+		.runtime-state.online::before { background: #5da477; }
+		.management-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+		.management-panel { min-width: 0; padding: 17px 0; border-top: 1px solid var(--line); }
+		.management-panel h2 { margin: 0; font-size: 13px; font-weight: 800; }
+		.management-panel h3 { margin: 15px 0 8px; color: #728078; font: 9px var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+		.panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+		.panel-count { color: #87918a; font: 10px var(--mono); }
+		.inline-form { display: flex; gap: 7px; margin: 12px 0 15px; }
+		.inline-form input, .inline-form select { min-width: 0; height: 35px; padding: 0 9px; border: 1px solid #d4ddd5; border-radius: 5px; background: white; color: var(--ink); font-size: 10px; }
+		.inline-form input { flex: 1; }
+		.player-name-list, .file-list { display: grid; }
+		.player-row, .file-row { display: flex; min-height: 39px; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid #e8ece8; font-size: 11px; }
+		.player-row:last-child, .file-row:last-child { border-bottom: 0; }
+		.player-empty, .file-empty { padding: 18px 0; color: #87918a; font-size: 11px; }
+		.player-tag { color: #738078; font: 9px var(--mono); }
+		.file-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+		.file-breadcrumb { display: flex; min-width: 0; align-items: center; gap: 6px; overflow-x: auto; color: #78847c; font: 10px var(--mono); white-space: nowrap; }
+		.crumb-button { padding: 3px 4px; border: 0; background: transparent; color: var(--green-dark); cursor: pointer; font: inherit; }
+		.crumb-button:hover { text-decoration: underline; }
+		.file-row-main { display: flex; min-width: 0; align-items: center; gap: 10px; }
+		.file-kind { display: grid; width: 23px; height: 23px; flex: 0 0 auto; place-items: center; border-radius: 4px; background: #edf2eb; color: var(--green-dark); font-size: 11px; }
+		.file-open { overflow: hidden; padding: 0; border: 0; background: transparent; color: var(--ink); cursor: pointer; font-size: 11px; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+		.file-open:hover { color: var(--green); text-decoration: underline; }
+		.file-size { flex: 0 0 auto; color: #8a948e; font: 9px var(--mono); }
+		.editor-textarea { width: 100%; min-height: 48vh; resize: vertical; padding: 13px; border: 1px solid #d4ddd5; border-radius: 5px; background: #f8faf7; color: #26332b; font: 11px/1.6 var(--mono); tab-size: 2; }
+		.server-status.is-running { color: var(--green-dark); }
+
+		.modal-backdrop { position: fixed; z-index: 5; inset: 0; display: grid; place-items: center; padding: 20px; background: rgb(20 30 24 / 42%); backdrop-filter: blur(4px); animation: fade .15s ease both; }
+		.modal { width: min(500px, 100%); overflow: hidden; border: 1px solid rgb(255 255 255 / 65%); border-radius: 10px; background: var(--surface); box-shadow: var(--shadow); animation: rise .22s ease both; }
+		.modal-head { display: flex; align-items: flex-start; justify-content: space-between; padding: 22px 24px 17px; border-bottom: 1px solid var(--line); }
+		.modal-title { margin: 0; font-size: 17px; font-weight: 800; }
+		.modal-subtitle { margin: 5px 0 0; color: var(--ink-soft); font-size: 11px; }
+		.close-button { display: grid; width: 30px; height: 30px; place-items: center; border: 0; border-radius: 5px; background: transparent; color: #69756e; cursor: pointer; font-size: 19px; }
+		.close-button:hover { background: var(--surface-muted); }
+		.modal-body { display: grid; gap: 15px; padding: 20px 24px; }
+		.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 13px; }
+		.field { display: grid; gap: 6px; }
+		.field.full { grid-column: 1 / -1; }
+		.field label { color: #536057; font-size: 10px; font-weight: 800; }
+		.field input, .field select { width: 100%; height: 38px; padding: 0 10px; border: 1px solid #d4ddd5; border-radius: 5px; background: #fbfcfa; color: var(--ink); font-size: 11px; }
+		.ram-control { display: grid; grid-template-columns: minmax(0, 1fr) 68px; align-items: center; gap: 12px; }
+		.ram-control input[type='range'] { width: 100%; accent-color: var(--green); }
+		.ram-value { padding: 8px 7px; border: 1px solid var(--line); border-radius: 5px; background: #f7f9f6; font: 11px var(--mono); text-align: center; }
+		.field-hint { color: #808b83; font-size: 9px; }
+		.form-warning { display: flex; gap: 9px; padding: 10px 11px; border: 1px solid #f0dfc7; border-radius: 5px; background: #fff9ee; color: #7c6847; font-size: 10px; line-height: 1.5; }
+		.modal-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 24px 20px; }
+		.toast { position: fixed; z-index: 10; right: 23px; bottom: 23px; max-width: min(370px, calc(100vw - 46px)); padding: 12px 15px; border: 1px solid #365c43; border-radius: 6px; background: #253e2e; box-shadow: var(--shadow); color: #f4f7ed; font-size: 11px; animation: rise .2s ease both; }
+		.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+		[hidden] { display: none !important; }
+
+		@keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+		@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+		@media (max-width: 1050px) {
+			.main { padding-right: 28px; padding-left: 28px; }
+			.server-card { grid-template-columns: minmax(180px, 1.4fr) repeat(2, minmax(80px, .7fr)) auto; }
+			.server-card .server-field:nth-of-type(4) { display: none; }
+		}
+		@media (max-width: 760px) {
+			.app-shell { grid-template-columns: 66px minmax(0, 1fr); }
+			.sidebar { align-items: center; padding: 18px 8px 12px; }
+			.brand { padding: 0 0 34px; }
+			.brand-copy, .nav-label, .nav-text, .nav-count, .runtime-box, .sidebar-foot { display: none; }
+			.nav-list { width: 100%; }
+			.nav-item { width: 48px; justify-content: center; padding: 0; }
+			.nav-icon { font-size: 18px; }
+			.main { padding: 0 22px 36px; }
+			.topbar { height: 64px; }
+			.page-head { align-items: flex-start; flex-direction: column; padding: 30px 0 22px; }
+			.page-head .button { width: 100%; }
+			.requirement { padding: 16px; }
+			.req-metric { min-width: 80px; padding-left: 13px; }
+			.req-number { font-size: 20px; }
+			.stats { margin-bottom: 28px; }
+			.stat { min-height: 75px; padding: 13px 10px; }
+			.stat-value { font-size: 18px; }
+			.stat-note { display: none; }
+			.server-card { grid-template-columns: minmax(0, 1fr) auto; gap: 12px; padding: 14px; }
+			.server-field { display: none; }
+			.server-actions { grid-column: 2; grid-row: 1; }
+			.server-ident { grid-column: 1; grid-row: 1; }
+			.settings-row { align-items: flex-start; flex-direction: column; gap: 9px; }
+			.settings-value { text-align: left; }
+			.management-grid { grid-template-columns: 1fr; gap: 0; }
+			.management-bar { align-items: flex-start; flex-direction: column; }
+			.management-controls { width: 100%; }
+			.management-bar select { min-width: 0; width: 100%; }
+			.management-controls .button { white-space: nowrap; }
+			.inline-form { flex-wrap: wrap; }
+			.inline-form select { flex: 1; }
+		}
+		@media (max-width: 430px) {
+			.main { padding-right: 15px; padding-left: 15px; }
+			.machine-pill { padding: 7px; font-size: 0; }
+			.machine-pill .led { margin: 0 3px; }
+			.requirement { grid-template-columns: 1fr; gap: 13px; }
+			.req-metric { display: flex; align-items: baseline; gap: 8px; padding: 9px 0 0; border-top: 1px solid #c9d6ca; border-left: 0; }
+			.req-label { margin-top: 0; }
+			.form-grid { grid-template-columns: 1fr; }
+			.field.full { grid-column: auto; }
+			.modal-head, .modal-body { padding-right: 18px; padding-left: 18px; }
+			.modal-foot { padding-right: 18px; padding-left: 18px; }
+		}
+	</style>
+</head>
+<body>
+	<div class="app-shell">
+		<aside class="sidebar" aria-label="Main navigation">
+			<div class="brand">
+				<div class="brand-mark" aria-hidden="true"><span></span></div>
+				<div class="brand-copy"><div class="brand-name">blockhost</div><div class="brand-caption">local server manager</div></div>
+			</div>
+			<div class="nav-label">Workspace</div>
+			<nav class="nav-list">
+				<button class="nav-item active" type="button" data-view="overview" aria-current="page"><span class="nav-icon" aria-hidden="true">⌂</span><span class="nav-text">Overview</span></button>
+				<button class="nav-item" type="button" data-view="servers"><span class="nav-icon" aria-hidden="true">▦</span><span class="nav-text">Servers</span><span class="nav-count" id="nav-count">0</span></button>
+				<button class="nav-item" type="button" data-view="players"><span class="nav-icon" aria-hidden="true">♙</span><span class="nav-text">Players</span></button>
+				<button class="nav-item" type="button" data-view="mods"><span class="nav-icon" aria-hidden="true">◈</span><span class="nav-text">Mods</span></button>
+				<button class="nav-item" type="button" data-view="files"><span class="nav-icon" aria-hidden="true">▤</span><span class="nav-text">Files</span></button>
+				<button class="nav-item" type="button" data-view="settings"><span class="nav-icon" aria-hidden="true">⚙</span><span class="nav-text">Settings</span></button>
+			</nav>
+			<div class="sidebar-spacer"></div>
+			<div class="runtime-box">
+				<div class="runtime-title"><span class="runtime-dot" id="runtime-dot"></span><span id="runtime-label">Checking Java...</span></div>
+				<div class="runtime-copy" id="runtime-copy">Checking this computer's Java runtime.</div>
+			</div>
+			<div class="sidebar-foot">BLOCKHOST / LOCAL ONLY</div>
+		</aside>
+
+		<main class="main">
+			<header class="topbar">
+				<div class="crumb" id="breadcrumb">Workspace&nbsp; / &nbsp;<strong>Overview</strong></div>
+				<div class="top-actions"><div class="machine-pill"><span class="led"></span> This computer</div><div class="avatar" aria-label="Local profile">L</div></div>
+			</header>
+			<div class="content">
+				<section class="view" id="overview-view">
+					<div class="page-head">
+						<div><div class="eyebrow">Your local worlds</div><h1>Server overview</h1><p class="page-subtitle">Set up and organize Minecraft servers on this computer.</p></div>
+						<button class="button" type="button" data-open-create><span class="plus" aria-hidden="true">+</span> Create server</button>
+					</div>
+						<section class="requirement" aria-label="Minimum system requirement">
+							<div class="req-copy"><div class="req-icon" aria-hidden="true">RAM</div><div><h2 class="req-title">System memory requirement</h2><p class="req-desc" id="req-desc">Your computer needs at least 4 GB of total RAM to run Blockhost. Leave memory for your operating system too.</p></div></div>
+						<div class="req-metric"><div class="req-number">4 GB</div><div class="req-label">minimum total RAM</div></div>
+					</section>
+					<section class="stats" aria-label="Server summary">
+						<div class="stat"><div class="stat-label">Profiles</div><div class="stat-value"><span id="stat-profiles">0</span><span class="stat-note">configured</span></div></div>
+						<div class="stat"><div class="stat-label">Running</div><div class="stat-value"><span id="running-count">0</span><span class="stat-note">servers online</span></div></div>
+						<div class="stat"><div class="stat-label">Java runtime</div><div class="stat-value" id="runtime-stat" style="font-size:14px">Checking...</div></div>
+					</section>
+					<section aria-labelledby="servers-heading">
+						<div class="section-head"><h2 class="section-title" id="servers-heading">Your server profiles</h2><span class="section-meta" id="list-count">0 PROFILES</span></div>
+						<div class="server-list" id="server-list"></div>
+						<div class="setup-note"><span aria-hidden="true">●</span> Server profiles and files stay on this computer.</div>
+					</section>
+				</section>
+
+				<section class="view" id="servers-view" hidden>
+					<div class="page-head"><div><div class="eyebrow">Local configurations</div><h1>Servers</h1><p class="page-subtitle">Create and review server profiles for this computer.</p></div><button class="button" type="button" data-open-create><span class="plus" aria-hidden="true">+</span> Create server</button></div>
+					<div class="section-head"><h2 class="section-title">All profiles</h2><span class="section-meta" id="servers-count">0 PROFILES</span></div>
+					<div class="server-list" id="server-list-secondary"></div>
+						<div class="setup-note"><span aria-hidden="true">●</span> Install a version to enable server start and file management.</div>
+				</section>
+
+						<section class="view" id="players-view" hidden>
+							<div class="page-head"><div><div class="eyebrow">Server access</div><h1>Players</h1><p class="page-subtitle">Check who is online and manage whitelist, operator, and ban lists.</p></div></div>
+							<div class="management-bar"><label for="players-server-select">Server<select id="players-server-select" data-server-select><option value="">No server profiles</option></select></label><div class="management-controls"><span class="runtime-state" id="players-state">Choose a server</span><button class="button secondary small" type="button" data-refresh-players>Refresh</button></div></div>
+							<div class="management-grid">
+								<section class="management-panel"><div class="panel-heading"><h2>Online now</h2><span class="panel-count" id="online-count">0 PLAYERS</span></div><div class="player-name-list" id="online-player-list"><div class="player-empty">Select a server to load its player list.</div></div></section>
+								<section class="management-panel"><div class="panel-heading"><h2>Player actions</h2></div><form class="inline-form" id="player-action-form"><input id="player-name-input" type="text" placeholder="Java username" maxlength="16" autocomplete="off" required><select id="player-action-select" aria-label="Player action"><option value="whitelist-add">Add to whitelist</option><option value="whitelist-remove">Remove from whitelist</option><option value="op">Make operator</option><option value="deop">Remove operator</option><option value="ban">Ban player</option><option value="pardon">Unban player</option></select><button class="button small" type="submit">Apply</button></form><div class="field-hint">Server must be running. Actions use the server console.</div></section>
+							</div>
+							<div class="management-grid">
+								<section class="management-panel"><div class="panel-heading"><h2>Whitelist</h2><span class="panel-count" id="whitelist-count">0</span></div><div class="player-name-list" id="whitelist-list"><div class="player-empty">No whitelist data.</div></div></section>
+								<section class="management-panel"><div class="panel-heading"><h2>Operators</h2><span class="panel-count" id="operators-count">0</span></div><div class="player-name-list" id="operators-list"><div class="player-empty">No operator data.</div></div><h3>Banned players</h3><div class="player-name-list" id="banned-list"><div class="player-empty">No ban data.</div></div></section>
+							</div>
+						</section>
+
+						<section class="view" id="mods-view" hidden>
+							<div class="page-head"><div><div class="eyebrow">Server extensions</div><h1>Mods</h1><p class="page-subtitle">Manage mod JAR files in a server’s local mods folder.</p></div></div>
+							<div class="management-bar"><label for="mods-server-select">Server<select id="mods-server-select" data-server-select><option value="">No server profiles</option></select></label><div class="management-controls"><button class="button small" type="button" data-add-mod>Add mod JAR</button></div></div>
+							<div class="form-warning"><span aria-hidden="true">!</span><span>Mods only load with a compatible mod loader such as Fabric or Forge. This build installs Vanilla servers, so added files are stored but will not load yet.</span></div>
+							<section class="management-panel"><div class="panel-heading"><h2>Installed mod files</h2><span class="panel-count" id="mods-count">0 FILES</span></div><div class="file-list" id="mods-list"><div class="file-empty">Select a server to browse its mods folder.</div></div></section>
+						</section>
+
+						<section class="view" id="files-view" hidden>
+							<div class="page-head"><div><div class="eyebrow">Server directory</div><h1>Files</h1><p class="page-subtitle">Browse and edit text configuration inside a server’s folder.</p></div></div>
+							<div class="management-bar"><label for="files-server-select">Server<select id="files-server-select" data-server-select><option value="">No server profiles</option></select></label><div class="management-controls"><button class="button secondary small" type="button" data-open-current-folder>Open in File Explorer</button></div></div>
+							<div class="file-toolbar"><div class="file-breadcrumb" id="file-breadcrumb"></div><button class="button secondary small" type="button" data-refresh-files>Refresh</button></div>
+							<section class="management-panel"><div class="file-list" id="server-file-list"><div class="file-empty">Select a server to browse its folder.</div></div></section>
+						</section>
+
+				<section class="view" id="settings-view" hidden>
+					<div class="page-head"><div><div class="eyebrow">Preferences</div><h1>Settings</h1><p class="page-subtitle">Local app requirements and runtime status.</p></div></div>
+					<div class="settings-panel">
+						<div class="settings-row"><div><div class="settings-name">Minimum system memory</div><div class="settings-help">Required total RAM for this host application.</div></div><span class="settings-chip">4 GB</span></div>
+						<div class="settings-row"><div><div class="settings-name">Server runtime</div><div class="settings-help">Official Java server JARs are downloaded and verified before launch.</div></div><span class="settings-value">LOCAL JAVA</span></div>
+						<div class="settings-row"><div><div class="settings-name">Profile storage</div><div class="settings-help">Profiles and server files are stored in Blockhost application data.</div></div><span class="settings-value">THIS COMPUTER</span></div>
+						<div class="settings-row"><div><div class="settings-name">Custom hostnames</div><div class="settings-help">Blockhost displays the address; DNS or a hosts entry must resolve it to the server.</div></div><span class="settings-value">DNS NOT MANAGED</span></div>
+						<div class="settings-row"><div><div class="settings-name">Privacy</div><div class="settings-help">No remote hosting or account service is configured.</div></div><span class="settings-value">THIS COMPUTER</span></div>
+					</div>
+				</section>
+			</div>
+		</main>
+	</div>
+
+	<div class="modal-backdrop" id="create-modal" hidden>
+		<section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+			<form id="create-form">
+				<div class="modal-head"><div><h2 class="modal-title" id="modal-title">Create server profile</h2><p class="modal-subtitle">Choose a name and initial server configuration.</p></div><button class="close-button" type="button" data-close-modal aria-label="Close">×</button></div>
+				<div class="modal-body">
+					<div class="form-grid">
+						<div class="field full"><label for="server-name">Server name</label><input id="server-name" name="name" type="text" placeholder="e.g. Friends Survival" maxlength="36" required autocomplete="off"></div>
+						<div class="field"><label for="server-version">Minecraft version</label><select id="server-version" name="version" required><option value="">Loading official versions...</option></select><div class="field-hint" id="version-count">All official versions and snapshots</div></div>
+						<div class="field"><label for="server-software">Server software</label><select id="server-software" name="software"><option>Vanilla</option></select><div class="field-hint">Official Mojang Java server</div></div>
+						<div class="field full"><label for="server-ram">Memory allocation</label><div class="ram-control"><input id="server-ram" name="ram" type="range" min="1" max="12" value="2"><output class="ram-value" id="ram-output" for="server-ram">2 GB</output></div><div class="field-hint">Keep some system memory free for Windows and other apps.</div></div>
+						<div class="field full"><label for="server-hostname">Custom join hostname</label><input id="server-hostname" name="hostname" type="text" placeholder="myserver.blocknodeg.local" maxlength="253" autocomplete="off"><div class="field-hint">Hostname only, without the port. It must resolve to this server for each player.</div></div>
+						<div class="field full"><label for="server-port">Server port</label><input id="server-port" name="port" type="number" min="1" max="65535" value="25565" required></div>
+					</div>
+					  <div class="form-warning"><span aria-hidden="true">!</span><span>A custom hostname is only the address shown to players; configure DNS or a hosts entry separately. The .local suffix is for local-network names and is not public DNS.</span></div>
+				</div>
+				<div class="modal-foot"><button class="button secondary" type="button" data-close-modal>Cancel</button><button class="button" type="submit">Save profile</button></div>
+			</form>
+		</section>
+	</div>
+	<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+		<div class="modal-backdrop" id="file-editor-modal" hidden>
+			<section class="modal" role="dialog" aria-modal="true" aria-labelledby="file-editor-title">
+				<div class="modal-head"><div><h2 class="modal-title" id="file-editor-title">Edit server file</h2><p class="modal-subtitle" id="file-editor-path"></p></div><button class="close-button" type="button" data-close-editor aria-label="Close">×</button></div>
+				<div class="modal-body"><label class="sr-only" for="file-editor-content">File contents</label><textarea class="editor-textarea" id="file-editor-content" spellcheck="false"></textarea></div>
+				<div class="modal-foot"><button class="button secondary" type="button" data-close-editor>Cancel</button><button class="button" type="button" data-save-file>Save changes</button></div>
+			</section>
+		</div>
+
+	<script>
+		const storageKey = 'blockhost-profiles-v1';
+		const list = document.querySelector('#server-list');
+		const secondaryList = document.querySelector('#server-list-secondary');
+		const createModal = document.querySelector('#create-modal');
+		const createForm = document.querySelector('#create-form');
+		const ramSlider = document.querySelector('#server-ram');
+		const ramOutput = document.querySelector('#ram-output');
+		const toast = document.querySelector('#toast');
+		const fileEditorModal = document.querySelector('#file-editor-modal');
+		const fileEditor = document.querySelector('#file-editor-content');
+		const currentFilePaths = new Map();
+		let fileEditorServer = '';
+		let fileEditorPath = '';
+		let toastTimer;
+
+		function readProfiles() {
+			try {
+				const profiles = JSON.parse(localStorage.getItem(storageKey) || '[]');
+				return Array.isArray(profiles) ? profiles : [];
+			} catch {
+				return [];
+			}
+		}
+
+		function escapeHtml(value) {
+			return String(value).replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
+		}
+
+		function profileMarkup(profile) {
+			const state = profile.running ? 'Running' : profile.installed ? 'Stopped' : 'Not installed';
+			const action = profile.running
+				? `<button class="button small secondary" type="button" data-stop="${escapeHtml(profile.id)}">Stop</button>`
+				: profile.installed
+					? `<button class="button small" type="button" data-start="${escapeHtml(profile.id)}">Start</button>`
+					: `<button class="button small" type="button" data-install="${escapeHtml(profile.id)}">Install</button>`;
+			const folderAction = profile.installed
+				? `<button class="icon-button" type="button" data-open-folder="${escapeHtml(profile.id)}" aria-label="Open ${escapeHtml(profile.name)} folder" title="Open server folder">↗</button>`
+				: '';
+			return `<article class="server-card" data-profile="${escapeHtml(profile.id)}">
+				<div class="server-ident"><div class="server-cube" aria-hidden="true">▦</div><div><div class="server-name">${escapeHtml(profile.name)}</div><div class="server-version">${escapeHtml(profile.software)} · ${escapeHtml(profile.version)}</div></div></div>
+				<div class="server-field"><div class="server-field-label">Status</div><div class="server-field-value server-status ${profile.running ? 'is-running' : ''}">${state}</div></div>
+				<div class="server-field"><div class="server-field-label">Memory</div><div class="server-field-value">${escapeHtml(profile.ram)} GB</div></div>
+				<div class="server-field"><div class="server-field-label">Join address</div><div class="server-field-value">${escapeHtml(profile.joinAddress || `${profile.hostname || 'localhost'}:${profile.port}`)}</div></div>
+				<div class="server-actions">${action}${folderAction}<button class="icon-button danger" type="button" data-delete="${escapeHtml(profile.id)}" aria-label="Delete ${escapeHtml(profile.name)}" title="Delete profile">×</button></div>
+			</article>`;
+		}
+
+		async function renderProfiles() {
+			let profiles;
+			try {
+				profiles = window.blockhost ? await window.blockhost.getProfiles() : readProfiles();
+			} catch (error) {
+				showToast(error.message || 'Unable to load server profiles.');
+				profiles = readProfiles();
+			}
+			const markup = profiles.map(profileMarkup).join('');
+			const empty = '<div class="empty-state"><div><div class="empty-art" aria-hidden="true">▦</div><h3 class="empty-title">No server profiles yet</h3><p class="empty-copy">Create a profile to save a server name, version, software type, memory, and port.</p><button class="button small" type="button" data-open-create><span class="plus" aria-hidden="true">+</span> Create your first server</button></div></div>';
+			list.innerHTML = markup || empty;
+			secondaryList.innerHTML = markup || empty;
+			document.querySelector('#stat-profiles').textContent = profiles.length;
+			document.querySelector('#nav-count').textContent = profiles.length;
+			document.querySelector('#list-count').textContent = `${profiles.length} ${profiles.length === 1 ? 'PROFILE' : 'PROFILES'}`;
+			document.querySelector('#servers-count').textContent = `${profiles.length} ${profiles.length === 1 ? 'PROFILE' : 'PROFILES'}`;
+			document.querySelector('#running-count').textContent = profiles.filter(profile => profile.running).length;
+			populateServerSelectors(profiles);
+			const activeView = document.querySelector('.view:not([hidden])')?.id;
+			if (activeView === 'players-view') await refreshPlayersView();
+			if (activeView === 'mods-view') await refreshModsView();
+			if (activeView === 'files-view') await refreshFilesView();
+		}
+
+		function populateServerSelectors(profiles) {
+			document.querySelectorAll('[data-server-select]').forEach(select => {
+				const selected = profiles.some(profile => profile.id === select.value) ? select.value : profiles[0]?.id || '';
+				const options = profiles.map(profile => new Option(profile.name, profile.id));
+				if (!profiles.length) options.unshift(new Option('No server profiles', ''));
+				select.replaceChildren(...options);
+				select.value = selected;
+			});
+		}
+
+		function selectedServer(selectId) {
+			return document.querySelector(selectId).value;
+		}
+
+		function renderNameList(elementId, names, emptyText) {
+			const target = document.querySelector(elementId);
+			target.innerHTML = names.length
+				? names.map(name => `<div class="player-row"><span>${escapeHtml(name)}</span></div>`).join('')
+				: `<div class="player-empty">${escapeHtml(emptyText)}</div>`;
+		}
+
+		async function refreshPlayersView() {
+			const profileId = selectedServer('#players-server-select');
+			const state = document.querySelector('#players-state');
+			if (!profileId) {
+				state.textContent = 'Create a server profile first';
+				state.classList.remove('online');
+				renderNameList('#online-player-list', [], 'No server selected.');
+				renderNameList('#whitelist-list', [], 'No server selected.');
+				renderNameList('#operators-list', [], 'No server selected.');
+				renderNameList('#banned-list', [], 'No server selected.');
+				return;
+			}
+			if (!window.blockhost) {
+				state.textContent = 'Open the desktop app';
+				state.classList.remove('online');
+				renderNameList('#online-player-list', [], 'Live players appear in the desktop app.');
+				return;
+			}
+			try {
+				const players = await window.blockhost.getPlayers(profileId);
+				state.textContent = players.running ? 'Server running' : 'Server stopped';
+				state.classList.toggle('online', players.running);
+				document.querySelector('#online-count').textContent = `${players.online.length} ${players.online.length === 1 ? 'PLAYER' : 'PLAYERS'}`;
+				document.querySelector('#whitelist-count').textContent = players.whitelist.length;
+				document.querySelector('#operators-count').textContent = players.operators.length;
+				renderNameList('#online-player-list', players.online, players.running ? 'No players online.' : 'Start the server to see online players.');
+				renderNameList('#whitelist-list', players.whitelist, 'Whitelist is empty.');
+				renderNameList('#operators-list', players.operators, 'No operators configured.');
+				renderNameList('#banned-list', players.banned, 'No banned players.');
+			} catch (error) {
+				state.textContent = 'Could not load players';
+				state.classList.remove('online');
+				showToast(error.message);
+			}
+		}
+
+		function formatBytes(bytes) {
+			if (bytes < 1024) return `${bytes} B`;
+			if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+			return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+		}
+
+		async function refreshModsView() {
+			const profileId = selectedServer('#mods-server-select');
+			const target = document.querySelector('#mods-list');
+			if (!profileId) {
+				target.innerHTML = '<div class="file-empty">Create a server profile to manage its mod folder.</div>';
+				document.querySelector('#mods-count').textContent = '0 FILES';
+				return;
+			}
+			if (!window.blockhost) {
+				target.innerHTML = '<div class="file-empty">Open the desktop app to manage mod files.</div>';
+				return;
+			}
+			try {
+				const folder = await window.blockhost.listServerFiles(profileId, 'mods');
+				const mods = folder.entries.filter(entry => entry.type === 'file' && entry.name.toLowerCase().endsWith('.jar'));
+				document.querySelector('#mods-count').textContent = `${mods.length} ${mods.length === 1 ? 'FILE' : 'FILES'}`;
+				target.innerHTML = mods.length ? mods.map(mod => `<div class="file-row"><div class="file-row-main"><span class="file-kind" aria-hidden="true">J</span><span class="file-open">${escapeHtml(mod.name)}</span></div><div class="management-controls"><span class="file-size">${formatBytes(mod.size)}</span><button class="icon-button danger" type="button" data-remove-mod="mods/${escapeHtml(mod.name)}" aria-label="Remove ${escapeHtml(mod.name)}">×</button></div></div>`).join('') : '<div class="file-empty">No mod JARs in this server folder.</div>';
+			} catch (error) { target.innerHTML = `<div class="file-empty">${escapeHtml(error.message)}</div>`; }
+		}
+
+		function renderBreadcrumb(relativePath) {
+			const parts = relativePath ? relativePath.split('/').filter(Boolean) : [];
+			let accumulated = '';
+			const links = ['<button class="crumb-button" type="button" data-browse-path="">Server root</button>'];
+			for (const part of parts) {
+				accumulated = accumulated ? `${accumulated}/${part}` : part;
+				links.push(`<span aria-hidden="true">/</span><button class="crumb-button" type="button" data-browse-path="${escapeHtml(accumulated)}">${escapeHtml(part)}</button>`);
+			}
+			document.querySelector('#file-breadcrumb').innerHTML = links.join('');
+		}
+
+		async function refreshFilesView() {
+			const profileId = selectedServer('#files-server-select');
+			const target = document.querySelector('#server-file-list');
+			if (!profileId) {
+				renderBreadcrumb('');
+				target.innerHTML = '<div class="file-empty">Create a server profile to browse its files.</div>';
+				return;
+			}
+			if (!window.blockhost) {
+				renderBreadcrumb('');
+				target.innerHTML = '<div class="file-empty">Open the desktop app to browse server files.</div>';
+				return;
+			}
+			const relativePath = currentFilePaths.get(profileId) || '';
+			renderBreadcrumb(relativePath);
+			try {
+				const folder = await window.blockhost.listServerFiles(profileId, relativePath);
+				const rows = [];
+				if (relativePath) {
+					const parent = relativePath.split('/').slice(0, -1).join('/');
+					rows.push(`<div class="file-row"><div class="file-row-main"><span class="file-kind" aria-hidden="true">↑</span><button class="file-open" type="button" data-browse-path="${escapeHtml(parent)}">Parent folder</button></div></div>`);
+				}
+				for (const entry of folder.entries) {
+					const itemPath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
+					const isDirectory = entry.type === 'directory';
+					const isLink = entry.type === 'link';
+					const button = isDirectory
+						? `<button class="file-open" type="button" data-browse-path="${escapeHtml(itemPath)}">${escapeHtml(entry.name)}</button>`
+						: `<button class="file-open" type="button" data-edit-file="${escapeHtml(itemPath)}" ${isLink ? 'disabled' : ''}>${escapeHtml(entry.name)}</button>`;
+					rows.push(`<div class="file-row"><div class="file-row-main"><span class="file-kind" aria-hidden="true">${isDirectory ? '▰' : isLink ? '↗' : '·'}</span>${button}</div><div class="management-controls">${isDirectory ? '' : `<span class="file-size">${isLink ? 'LINK' : formatBytes(entry.size)}</span>`}<button class="icon-button danger" type="button" data-delete-file="${escapeHtml(itemPath)}" aria-label="Delete ${escapeHtml(entry.name)}" title="Delete">×</button></div></div>`);
+				}
+				target.innerHTML = rows.join('') || '<div class="file-empty">This folder is empty.</div>';
+			} catch (error) { target.innerHTML = `<div class="file-empty">${escapeHtml(error.message)}</div>`; }
+		}
+
+		async function openTextFile(relativePath) {
+			const profileId = selectedServer('#files-server-select');
+			if (!profileId || !window.blockhost) return;
+			try {
+				const file = await window.blockhost.readServerFile(profileId, relativePath);
+				fileEditorServer = profileId;
+				fileEditorPath = relativePath;
+				document.querySelector('#file-editor-title').textContent = relativePath.split('/').pop();
+				document.querySelector('#file-editor-path').textContent = relativePath;
+				fileEditor.value = file.content;
+				fileEditorModal.hidden = false;
+				fileEditor.focus();
+			} catch (error) { showToast(error.message); }
+		}
+
+		async function loadVersions() {
+			const select = document.querySelector('#server-version');
+			try {
+				const catalog = window.blockhost
+					? await window.blockhost.getVersions()
+					: { latestRelease: '1.21.4', versions: [{ id: '1.21.4', type: 'release' }, { id: '1.20.4', type: 'release' }, { id: '24w14a', type: 'snapshot' }] };
+				const groups = new Map();
+				for (const version of catalog.versions) {
+					const label = version.type === 'release' ? 'Releases' : version.type === 'snapshot' ? 'Snapshots' : 'Legacy versions';
+					if (!groups.has(label)) groups.set(label, document.createElement('optgroup'));
+					groups.get(label).label = label;
+					const option = document.createElement('option');
+					option.value = version.id;
+					option.textContent = `${version.id}${version.type === 'snapshot' ? ' · snapshot' : ''}`;
+					groups.get(label).append(option);
+				}
+				select.replaceChildren(...groups.values());
+				select.value = catalog.latestRelease;
+				document.querySelector('#version-count').textContent = `${catalog.versions.length} official versions, including snapshots`;
+			} catch (error) {
+				select.replaceChildren(new Option('Could not load versions', ''));
+				document.querySelector('#version-count').textContent = 'Check your internet connection and reload.';
+				showToast(error.message || 'Could not load Minecraft versions.');
+			}
+		}
+
+		async function refreshRuntimeStatus() {
+			if (!window.blockhost) {
+				document.querySelector('#runtime-label').textContent = 'Desktop runtime required';
+				document.querySelector('#runtime-copy').textContent = 'Open the packaged app to install or run server files.';
+				document.querySelector('#runtime-stat').textContent = 'Desktop app';
+				return;
+			}
+			try {
+				const [system, java] = await Promise.all([window.blockhost.getSystemInfo(), window.blockhost.getRuntimeStatus()]);
+				const memoryGb = system.totalMemoryBytes / (1024 ** 3);
+				document.querySelector('#req-desc').textContent = `This computer has ${memoryGb.toFixed(1)} GB of RAM. Blockhost requires at least 4 GB total; leave memory for your operating system too.`;
+				document.querySelector('#runtime-label').textContent = java.available ? `Java ${java.version} detected` : 'Java not found';
+				document.querySelector('#runtime-copy').textContent = java.available ? 'Java servers can be launched on this computer.' : 'Install a Java runtime to start servers.';
+				document.querySelector('#runtime-stat').textContent = java.available ? `Java ${java.version}` : 'Not installed';
+				document.querySelector('#runtime-dot').style.background = java.available ? '#5da477' : '#e57d50';
+			} catch (error) {
+				document.querySelector('#runtime-label').textContent = 'Runtime check failed';
+				document.querySelector('#runtime-copy').textContent = error.message;
+				document.querySelector('#runtime-stat').textContent = 'Unavailable';
+			}
+		}
+
+		function showToast(message) {
+			toast.textContent = message;
+			toast.hidden = false;
+			window.clearTimeout(toastTimer);
+			toastTimer = window.setTimeout(() => { toast.hidden = true; }, 3200);
+		}
+
+		function openModal() {
+			createModal.hidden = false;
+			document.querySelector('#server-name').focus();
+		}
+
+		function closeModal() {
+			createModal.hidden = true;
+		}
+
+		function setView(viewName) {
+			document.querySelectorAll('.view').forEach(view => { view.hidden = view.id !== `${viewName}-view`; });
+			document.querySelectorAll('.nav-item').forEach(item => {
+				const selected = item.dataset.view === viewName;
+				item.classList.toggle('active', selected);
+				if (selected) item.setAttribute('aria-current', 'page');
+				else item.removeAttribute('aria-current');
+			});
+			const label = viewName === 'overview' ? 'Overview' : viewName.charAt(0).toUpperCase() + viewName.slice(1);
+			document.querySelector('#breadcrumb').innerHTML = `Workspace&nbsp; / &nbsp;<strong>${label}</strong>`;
+			if (viewName === 'players') refreshPlayersView();
+			if (viewName === 'mods') refreshModsView();
+			if (viewName === 'files') refreshFilesView();
+		}
+
+		document.addEventListener('click', async event => {
+			if (event.target.closest('[data-open-create]')) openModal();
+			if (event.target.closest('[data-close-modal]')) closeModal();
+			const navItem = event.target.closest('[data-view]');
+			if (navItem) setView(navItem.dataset.view);
+			if (event.target.closest('[data-close-editor]')) fileEditorModal.hidden = true;
+			if (event.target.closest('[data-refresh-players]')) refreshPlayersView();
+			if (event.target.closest('[data-refresh-files]')) refreshFilesView();
+			if (event.target.closest('[data-open-current-folder]')) {
+				const profileId = selectedServer('#files-server-select');
+				if (profileId && window.blockhost) {
+					try { await window.blockhost.openServerFolder(profileId); }
+					catch (error) { showToast(error.message); }
+				} else showToast('Open the desktop app to open a server folder.');
+			}
+			const browseButton = event.target.closest('[data-browse-path]');
+			if (browseButton) {
+				const profileId = selectedServer('#files-server-select');
+				if (profileId) currentFilePaths.set(profileId, browseButton.dataset.browsePath);
+				refreshFilesView();
+			}
+			const editButton = event.target.closest('[data-edit-file]');
+			if (editButton && !editButton.disabled) openTextFile(editButton.dataset.editFile);
+			const deleteFileButton = event.target.closest('[data-delete-file]');
+			if (deleteFileButton) {
+				const profileId = selectedServer('#files-server-select');
+				if (profileId && window.blockhost && window.confirm(`Delete ${deleteFileButton.dataset.deleteFile}?`)) {
+					try {
+						await window.blockhost.deleteServerFile(profileId, deleteFileButton.dataset.deleteFile);
+						await refreshFilesView();
+						showToast('File deleted.');
+					} catch (error) { showToast(error.message); }
+				}
+			}
+			const addModButton = event.target.closest('[data-add-mod]');
+			if (addModButton) {
+				const profileId = selectedServer('#mods-server-select');
+				if (!profileId || !window.blockhost) showToast('Open the desktop app and choose a server first.');
+				else {
+					try {
+						const added = await window.blockhost.addMods(profileId);
+						await refreshModsView();
+						if (added.length) showToast(`${added.length} mod JAR${added.length === 1 ? '' : 's'} added.`);
+					} catch (error) { showToast(error.message); }
+				}
+			}
+			const removeModButton = event.target.closest('[data-remove-mod]');
+			if (removeModButton) {
+				const profileId = selectedServer('#mods-server-select');
+				if (profileId && window.blockhost && window.confirm(`Remove ${removeModButton.dataset.removeMod.split('/').pop()}?`)) {
+					try {
+						await window.blockhost.deleteServerFile(profileId, removeModButton.dataset.removeMod);
+						await refreshModsView();
+						showToast('Mod file removed.');
+					} catch (error) { showToast(error.message); }
+				}
+			}
+			if (event.target.closest('[data-save-file]')) {
+				try {
+					await window.blockhost.writeServerFile(fileEditorServer, fileEditorPath, fileEditor.value);
+					fileEditorModal.hidden = true;
+					await refreshFilesView();
+					showToast('File saved. Restart the server if the setting requires it.');
+				} catch (error) { showToast(error.message); }
+			}
+			const deleteButton = event.target.closest('[data-delete]');
+			if (deleteButton) {
+				try {
+					if (window.blockhost) await window.blockhost.deleteProfile(deleteButton.dataset.delete);
+					else {
+						const profiles = readProfiles().filter(profile => profile.id !== deleteButton.dataset.delete);
+						localStorage.setItem(storageKey, JSON.stringify(profiles));
+					}
+					await renderProfiles();
+					showToast('Server profile deleted.');
+				} catch (error) { showToast(error.message); }
+			}
+			const installButton = event.target.closest('[data-install]');
+			if (installButton) {
+				if (!window.blockhost) showToast('Open the desktop app to install server files.');
+				else {
+					installButton.disabled = true;
+					showToast('Downloading the official Minecraft server JAR...');
+					try {
+						await window.blockhost.installServer(installButton.dataset.install);
+						await renderProfiles();
+						showToast('Server JAR installed and verified.');
+					} catch (error) { showToast(error.message); }
+				}
+			}
+			const startButton = event.target.closest('[data-start]');
+			if (startButton) {
+				startButton.disabled = true;
+				try {
+					if (!window.blockhost) throw new Error('Open the desktop app to start a server.');
+					await window.blockhost.startServer(startButton.dataset.start);
+					await renderProfiles();
+					showToast('Server process started.');
+				} catch (error) { showToast(error.message); }
+			}
+			const stopButton = event.target.closest('[data-stop]');
+			if (stopButton) {
+				stopButton.disabled = true;
+				try {
+					await window.blockhost.stopServer(stopButton.dataset.stop);
+					await renderProfiles();
+					showToast('Server stopped.');
+				} catch (error) { showToast(error.message); }
+			}
+			const folderButton = event.target.closest('[data-open-folder]');
+			if (folderButton && window.blockhost) {
+				try { await window.blockhost.openServerFolder(folderButton.dataset.openFolder); }
+				catch (error) { showToast(error.message); }
+			}
+			if (event.target === fileEditorModal) fileEditorModal.hidden = true;
+			if (event.target === createModal) closeModal();
+		});
+
+		document.querySelectorAll('[data-server-select]').forEach(select => {
+			select.addEventListener('change', () => {
+				if (select.id === 'players-server-select') refreshPlayersView();
+				if (select.id === 'mods-server-select') refreshModsView();
+				if (select.id === 'files-server-select') refreshFilesView();
+			});
+		});
+
+		document.querySelector('#player-action-form').addEventListener('submit', async event => {
+			event.preventDefault();
+			const profileId = selectedServer('#players-server-select');
+			const playerName = document.querySelector('#player-name-input').value.trim();
+			const action = document.querySelector('#player-action-select').value;
+			if (!profileId || !window.blockhost) return showToast('Open the desktop app and choose a server first.');
+			try {
+				await window.blockhost.runPlayerAction(profileId, action, playerName);
+				showToast('Player action sent to the server.');
+				await refreshPlayersView();
+			} catch (error) { showToast(error.message); }
+		});
+
+		createForm.addEventListener('submit', async event => {
+			event.preventDefault();
+			if (!createForm.reportValidity()) return;
+			const formData = new FormData(createForm);
+			const profile = {
+				id: window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+				name: formData.get('name').trim(),
+				version: formData.get('version'),
+				software: formData.get('software'),
+				ram: Number(formData.get('ram')),
+				port: Number(formData.get('port')),
+				hostname: formData.get('hostname').trim()
+			};
+			if (!profile.name) return;
+			const saveButton = createForm.querySelector('[type="submit"]');
+			saveButton.disabled = true;
+			try {
+				if (window.blockhost) await window.blockhost.createProfile(profile);
+				else {
+					profile.id = window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+					const profiles = readProfiles();
+					profiles.push(profile);
+					localStorage.setItem(storageKey, JSON.stringify(profiles));
+				}
+				createForm.reset();
+				ramOutput.value = `${ramSlider.value} GB`;
+				closeModal();
+				await renderProfiles();
+				showToast('Server profile saved on this computer.');
+			} catch (error) { showToast(error.message); }
+			finally { saveButton.disabled = false; }
+		});
+
+		ramSlider.addEventListener('input', () => { ramOutput.value = `${ramSlider.value} GB`; });
+		document.addEventListener('keydown', event => {
+			if (event.key === 'Escape' && !createModal.hidden) closeModal();
+			if (event.key === 'Escape' && !fileEditorModal.hidden) fileEditorModal.hidden = true;
+		});
+		renderProfiles();
+		loadVersions();
+		refreshRuntimeStatus();
+		if (window.blockhost) {
+			window.blockhost.onServerStatus(() => renderProfiles());
+			window.blockhost.onPlayerList(payload => {
+				if (payload.profileId !== selectedServer('#players-server-select')) return;
+				document.querySelector('#online-count').textContent = `${payload.players.length} ${payload.players.length === 1 ? 'PLAYER' : 'PLAYERS'}`;
+				renderNameList('#online-player-list', payload.players, 'No players online.');
+			});
+			let lastProgressUpdate = 0;
+			window.blockhost.onInstallProgress(progress => {
+				const now = Date.now();
+				if (progress.complete || now - lastProgressUpdate > 500) {
+					lastProgressUpdate = now;
+					showToast(progress.complete ? 'Server download verified.' : `Downloading server JAR${progress.percent === null ? '...' : `: ${progress.percent}%`}`);
+				}
+			});
+		}
+	</script>
+</body>
+</html>
